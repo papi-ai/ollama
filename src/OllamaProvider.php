@@ -34,13 +34,14 @@ use RuntimeException;
  * - mixtral (mixture of experts)
  * - qwen2.5-coder (code generation)
  */
-final class OllamaProvider implements ProviderInterface
+class OllamaProvider implements ProviderInterface
 {
     public function __construct(
         private readonly string $baseUrl = 'http://localhost:11434',
         private readonly string $defaultModel = 'llama3.1',
         private readonly int $defaultMaxTokens = 4096,
-    ) {}
+    ) {
+    }
 
     public function chat(array $messages, array $options = []): Response
     {
@@ -234,7 +235,7 @@ final class OllamaProvider implements ProviderInterface
     /**
      * Make an API request.
      */
-    private function request(array $payload): array
+    protected function request(array $payload): array
     {
         $url = $this->baseUrl . '/v1/chat/completions';
         $ch = curl_init($url);
@@ -273,7 +274,7 @@ final class OllamaProvider implements ProviderInterface
      *
      * @return Generator<array>
      */
-    private function streamRequest(array $payload): Generator
+    protected function streamRequest(array $payload): Generator
     {
         $url = $this->baseUrl . '/v1/chat/completions';
         $ch = curl_init($url);
@@ -287,6 +288,7 @@ final class OllamaProvider implements ProviderInterface
             ],
             CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$buffer) {
                 $buffer .= $data;
+
                 return strlen($data);
             },
         ]);
