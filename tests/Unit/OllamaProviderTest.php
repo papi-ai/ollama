@@ -12,7 +12,9 @@
 
 declare(strict_types=1);
 
+use PapiAI\Core\Contracts\EmbeddingProviderInterface;
 use PapiAI\Core\Contracts\ProviderInterface;
+use PapiAI\Core\EmbeddingResponse;
 use PapiAI\Core\Message;
 use PapiAI\Core\Response;
 use PapiAI\Core\StreamChunk;
@@ -25,7 +27,9 @@ use PapiAI\Ollama\OllamaProvider;
 class TestableOllamaProvider extends OllamaProvider
 {
     public array $lastPayload = [];
+    public array $lastEmbeddingPayload = [];
     public array $fakeResponse = [];
+    public array $fakeEmbeddingResponse = [];
     public array $fakeStreamEvents = [];
 
     protected function request(array $payload): array
@@ -43,6 +47,13 @@ class TestableOllamaProvider extends OllamaProvider
             yield $event;
         }
     }
+
+    protected function embeddingRequest(array $payload): array
+    {
+        $this->lastEmbeddingPayload = $payload;
+
+        return $this->fakeEmbeddingResponse;
+    }
 }
 
 describe('OllamaProvider', function () {
@@ -53,6 +64,10 @@ describe('OllamaProvider', function () {
     describe('construction', function () {
         it('implements ProviderInterface', function () {
             expect($this->provider)->toBeInstanceOf(ProviderInterface::class);
+        });
+
+        it('implements EmbeddingProviderInterface', function () {
+            expect($this->provider)->toBeInstanceOf(EmbeddingProviderInterface::class);
         });
 
         it('returns ollama as name', function () {
@@ -391,6 +406,72 @@ describe('OllamaProvider', function () {
             $chunks = iterator_to_array($this->provider->stream([Message::user('Hi')]));
 
             expect($chunks)->toHaveCount(2); // text + complete
+        });
+    });
+
+    describe('embed', function () {
+        it('embeds a single string input', function () {
+            $this->provider->fakeEmbeddingResponse = [
+                'model' => 'nomic-embed-text',
+                'embeddings' => [[0.1, 0.2, 0.3]],
+            ];
+
+            $response = $this->provider->embed('Hello world');
+
+            expect($response)->toBeInstanceOf(EmbeddingResponse::class);
+            expect($response->embeddings)->toBe([[0.1, 0.2, 0.3]]);
+            expect($response->model)->toBe('nomic-embed-text');
+            expect($this->provider->lastEmbeddingPayload['input'])->toBe(['Hello world']);
+        });
+
+        it('embeds an array of inputs', function () {
+            $this->provider->fakeEmbeddingResponse = [
+                'model' => 'nomic-embed-text',
+                'embeddings' => [[0.1, 0.2], [0.3, 0.4]],
+            ];
+
+            $response = $this->provider->embed(['text1', 'text2']);
+
+            expect($response->embeddings)->toHaveCount(2);
+            expect($response->embeddings[0])->toBe([0.1, 0.2]);
+            expect($response->embeddings[1])->toBe([0.3, 0.4]);
+            expect($this->provider->lastEmbeddingPayload['input'])->toBe(['text1', 'text2']);
+        });
+
+        it('uses default model nomic-embed-text', function () {
+            $this->provider->fakeEmbeddingResponse = [
+                'model' => 'nomic-embed-text',
+                'embeddings' => [[0.1]],
+            ];
+
+            $this->provider->embed('test');
+
+            expect($this->provider->lastEmbeddingPayload['model'])->toBe('nomic-embed-text');
+        });
+
+        it('allows custom model via options', function () {
+            $this->provider->fakeEmbeddingResponse = [
+                'model' => 'mxbai-embed-large',
+                'embeddings' => [[0.5, 0.6]],
+            ];
+
+            $response = $this->provider->embed('test', ['model' => 'mxbai-embed-large']);
+
+            expect($this->provider->lastEmbeddingPayload['model'])->toBe('mxbai-embed-large');
+            expect($response->model)->toBe('mxbai-embed-large');
+        });
+
+        it('parses response with multiple embeddings correctly', function () {
+            $this->provider->fakeEmbeddingResponse = [
+                'model' => 'nomic-embed-text',
+                'embeddings' => [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]],
+            ];
+
+            $response = $this->provider->embed(['a', 'b', 'c']);
+
+            expect($response->count())->toBe(3);
+            expect($response->dimensions())->toBe(3);
+            expect($response->first())->toBe([0.1, 0.2, 0.3]);
         });
     });
 });

@@ -15,7 +15,9 @@ declare(strict_types=1);
 namespace PapiAI\Ollama;
 
 use Generator;
+use PapiAI\Core\Contracts\EmbeddingProviderInterface;
 use PapiAI\Core\Contracts\ProviderInterface;
+use PapiAI\Core\EmbeddingResponse;
 use PapiAI\Core\Message;
 use PapiAI\Core\Response;
 use PapiAI\Core\Role;
@@ -34,7 +36,7 @@ use RuntimeException;
  * - mixtral (mixture of experts)
  * - qwen2.5-coder (code generation)
  */
-class OllamaProvider implements ProviderInterface
+class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
 {
     public function __construct(
         private readonly string $baseUrl = 'http://localhost:11434',
@@ -85,6 +87,62 @@ class OllamaProvider implements ProviderInterface
     public function getName(): string
     {
         return 'ollama';
+    }
+
+    public function embed(string|array $input, array $options = []): EmbeddingResponse
+    {
+        $input = is_string($input) ? [$input] : $input;
+        $model = $options['model'] ?? 'nomic-embed-text';
+
+        $payload = [
+            'model' => $model,
+            'input' => $input,
+        ];
+
+        $response = $this->embeddingRequest($payload);
+
+        return new EmbeddingResponse(
+            embeddings: $response['embeddings'],
+            model: $response['model'] ?? $model,
+            usage: [],
+        );
+    }
+
+    /**
+     * Make an embedding API request.
+     */
+    protected function embeddingRequest(array $payload): array
+    {
+        $url = $this->baseUrl . '/api/embed';
+        $ch = curl_init($url);
+
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($payload),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+            ],
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+
+        curl_close($ch);
+
+        if ($error !== '') {
+            throw new RuntimeException("Ollama embedding API request failed: {$error}");
+        }
+
+        $data = json_decode($response, true);
+
+        if ($httpCode >= 400) {
+            $errorMessage = $data['error']['message'] ?? 'Unknown error';
+            throw new RuntimeException("Ollama embedding API error ({$httpCode}): {$errorMessage}");
+        }
+
+        return $data;
     }
 
     /**
