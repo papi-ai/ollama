@@ -23,6 +23,9 @@ use PapiAI\Core\Response;
 use PapiAI\Core\Role;
 use PapiAI\Core\StreamChunk;
 use PapiAI\Core\ToolCall;
+use PapiAI\Core\Exception\AuthenticationException;
+use PapiAI\Core\Exception\ProviderException;
+use PapiAI\Core\Exception\RateLimitException;
 use RuntimeException;
 
 /**
@@ -138,8 +141,7 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
         $data = json_decode($response, true);
 
         if ($httpCode >= 400) {
-            $errorMessage = $data['error']['message'] ?? 'Unknown error';
-            throw new RuntimeException("Ollama embedding API error ({$httpCode}): {$errorMessage}");
+            $this->throwForStatusCode($httpCode, $data);
         }
 
         return $data;
@@ -320,11 +322,45 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
         $data = json_decode($response, true);
 
         if ($httpCode >= 400) {
-            $errorMessage = $data['error']['message'] ?? 'Unknown error';
-            throw new RuntimeException("Ollama API error ({$httpCode}): {$errorMessage}");
+            $this->throwForStatusCode($httpCode, $data);
         }
 
         return $data;
+    }
+
+    /**
+     * Throw the appropriate exception based on HTTP status code.
+     *
+     * @throws AuthenticationException
+     * @throws RateLimitException
+     * @throws ProviderException
+     */
+    private function throwForStatusCode(int $httpCode, ?array $data): never
+    {
+        $errorMessage = $data['error']['message'] ?? 'Unknown error';
+
+        if ($httpCode === 401) {
+            throw new AuthenticationException(
+                $this->getName(),
+                $httpCode,
+                $data,
+            );
+        }
+
+        if ($httpCode === 429) {
+            throw new RateLimitException(
+                $this->getName(),
+                statusCode: $httpCode,
+                responseBody: $data,
+            );
+        }
+
+        throw new ProviderException(
+            "Ollama API error ({$httpCode}): {$errorMessage}",
+            $this->getName(),
+            $httpCode,
+            $data,
+        );
     }
 
     /**
