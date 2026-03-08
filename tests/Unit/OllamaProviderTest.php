@@ -15,6 +15,9 @@ declare(strict_types=1);
 use PapiAI\Core\Contracts\EmbeddingProviderInterface;
 use PapiAI\Core\Contracts\ProviderInterface;
 use PapiAI\Core\EmbeddingResponse;
+use PapiAI\Core\Exception\AuthenticationException;
+use PapiAI\Core\Exception\ProviderException;
+use PapiAI\Core\Exception\RateLimitException;
 use PapiAI\Core\Message;
 use PapiAI\Core\Response;
 use PapiAI\Core\StreamChunk;
@@ -53,6 +56,11 @@ class TestableOllamaProvider extends OllamaProvider
         $this->lastEmbeddingPayload = $payload;
 
         return $this->fakeEmbeddingResponse;
+    }
+
+    public function callThrowForStatusCode(int $httpCode, ?array $data): never
+    {
+        $this->throwForStatusCode($httpCode, $data);
     }
 }
 
@@ -472,6 +480,28 @@ describe('OllamaProvider', function () {
             expect($response->count())->toBe(3);
             expect($response->dimensions())->toBe(3);
             expect($response->first())->toBe([0.1, 0.2, 0.3]);
+        });
+    });
+
+    describe('throwForStatusCode', function () {
+        it('throws AuthenticationException for 401', function () {
+            expect(fn () => $this->provider->callThrowForStatusCode(401, ['error' => ['message' => 'Unauthorized']]))
+                ->toThrow(AuthenticationException::class);
+        });
+
+        it('throws RateLimitException for 429', function () {
+            expect(fn () => $this->provider->callThrowForStatusCode(429, ['error' => ['message' => 'Too many requests']]))
+                ->toThrow(RateLimitException::class);
+        });
+
+        it('throws ProviderException for 500', function () {
+            expect(fn () => $this->provider->callThrowForStatusCode(500, ['error' => ['message' => 'Internal server error']]))
+                ->toThrow(ProviderException::class);
+        });
+
+        it('throws ProviderException with unknown error when data is null', function () {
+            expect(fn () => $this->provider->callThrowForStatusCode(500, null))
+                ->toThrow(ProviderException::class);
         });
     });
 });
