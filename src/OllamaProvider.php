@@ -29,18 +29,33 @@ use PapiAI\Core\ToolCall;
 use RuntimeException;
 
 /**
- * Ollama API Provider (local, OpenAI-compatible).
+ * Ollama API provider for PapiAI.
  *
- * Ollama runs locally and exposes an OpenAI-compatible API.
- * No API key is required. Common models include:
+ * Bridges PapiAI's core types (Message, Response, ToolCall) with Ollama's OpenAI-compatible
+ * API, handling format conversion in both directions. Supports chat completions, streaming,
+ * tool calling, vision (multimodal), structured JSON output, and text embeddings.
+ *
+ * Authentication is optional (local by default). Configurable base URL defaults to
+ * localhost:11434. All HTTP is done with ext-curl directly, with no HTTP abstraction layer.
+ *
+ * Common model families:
  * - llama3.1 (general purpose)
  * - codellama (code generation)
- * - mistral (general purpose)
- * - mixtral (mixture of experts)
+ * - mistral / mixtral (general purpose)
  * - qwen2.5-coder (code generation)
+ * - nomic-embed-text (embeddings)
+ *
+ * @see https://github.com/ollama/ollama/blob/main/docs/openai.md
  */
 class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
 {
+    /**
+     * Create a new Ollama provider instance.
+     *
+     * @param string $baseUrl         Ollama server URL (defaults to localhost:11434)
+     * @param string $defaultModel    Model to use when not specified in options
+     * @param int    $defaultMaxTokens Maximum output tokens when not specified in options
+     */
     public function __construct(
         private readonly string $baseUrl = 'http://localhost:11434',
         private readonly string $defaultModel = 'llama3.1',
@@ -48,6 +63,30 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
     ) {
     }
 
+    /**
+     * Send a chat completion request to the Ollama API.
+     *
+     * Converts PapiAI Messages to OpenAI-compatible format, sends the request,
+     * and parses the response back into a core Response object. Supports tools,
+     * vision, structured output, and custom generation parameters.
+     *
+     * @param array<Message> $messages Conversation history as PapiAI Message objects
+     * @param array{
+     *     model?: string,
+     *     tools?: array,
+     *     maxTokens?: int,
+     *     temperature?: float,
+     *     stopSequences?: array<string>,
+     *     outputSchema?: array,
+     * } $options Request options (model, tools, maxTokens, temperature, etc.)
+     *
+     * @return Response Parsed response containing text, tool calls, usage, and stop reason
+     *
+     * @throws AuthenticationException When authentication fails (HTTP 401)
+     * @throws RateLimitException      When rate limits are exceeded (HTTP 429)
+     * @throws ProviderException       When the API returns any other error (HTTP 4xx/5xx)
+     * @throws RuntimeException        When the cURL request itself fails
+     */
     public function chat(array $messages, array $options = []): Response
     {
         $payload = $this->buildPayload($messages, $options);
@@ -56,6 +95,26 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
         return Response::fromOpenAI($response, $messages);
     }
 
+    /**
+     * Stream a chat completion from the Ollama API using server-sent events.
+     *
+     * Yields StreamChunk objects as partial responses arrive. The final chunk
+     * has isComplete=true. Only text content is streamed.
+     *
+     * @param array<Message> $messages Conversation history as PapiAI Message objects
+     * @param array{
+     *     model?: string,
+     *     tools?: array,
+     *     maxTokens?: int,
+     *     temperature?: float,
+     *     stopSequences?: array<string>,
+     *     outputSchema?: array,
+     * } $options Request options (model, tools, maxTokens, temperature, etc.)
+     *
+     * @return iterable<StreamChunk> Stream of text chunks, ending with a completion marker
+     *
+     * @throws RuntimeException When the cURL request fails
+     */
     public function stream(array $messages, array $options = []): iterable
     {
         $payload = $this->buildPayload($messages, $options);
@@ -72,26 +131,71 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
         }
     }
 
+    /**
+     * Whether this provider supports function/tool calling.
+     *
+     * Ollama supports tool calling via its OpenAI-compatible API for models
+     * that have been trained with tool-use capabilities.
+     *
+     * @return bool Always true for Ollama
+     */
     public function supportsTool(): bool
     {
         return true;
     }
 
+    /**
+     * Whether this provider supports vision (image inputs in messages).
+     *
+     * Ollama supports multimodal inputs for vision-capable models (e.g. llava).
+     *
+     * @return bool Always true for Ollama
+     */
     public function supportsVision(): bool
     {
         return true;
     }
 
+    /**
+     * Whether this provider supports structured JSON output.
+     *
+     * Ollama supports JSON mode via the 'format' parameter.
+     *
+     * @return bool Always true for Ollama
+     */
     public function supportsStructuredOutput(): bool
     {
         return true;
     }
 
+    /**
+     * Get the provider identifier.
+     *
+     * @return string The provider name 'ollama'
+     */
     public function getName(): string
     {
         return 'ollama';
     }
 
+    /**
+     * Generate text embeddings via the Ollama embedding API.
+     *
+     * Uses Ollama's native /api/embed endpoint (not the OpenAI-compatible one)
+     * for embedding generation. Defaults to the nomic-embed-text model.
+     *
+     * @param string|array<string> $input Text or array of texts to embed
+     * @param array{
+     *     model?: string,
+     * } $options Embedding options (model defaults to 'nomic-embed-text')
+     *
+     * @return EmbeddingResponse The embedding vectors and metadata
+     *
+     * @throws AuthenticationException When authentication fails (HTTP 401)
+     * @throws RateLimitException      When rate limits are exceeded (HTTP 429)
+     * @throws ProviderException       When the API returns any other error (HTTP 4xx/5xx)
+     * @throws RuntimeException        When the cURL request itself fails
+     */
     public function embed(string|array $input, array $options = []): EmbeddingResponse
     {
         $input = is_string($input) ? [$input] : $input;
@@ -112,7 +216,16 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
     }
 
     /**
-     * Make an embedding API request.
+     * Make an embedding API request to Ollama's native /api/embed endpoint.
+     *
+     * @param array $payload The embedding request payload (model, input)
+     *
+     * @return array The decoded JSON response containing embeddings
+     *
+     * @throws AuthenticationException When authentication fails (HTTP 401)
+     * @throws RateLimitException      When rate limits are exceeded (HTTP 429)
+     * @throws ProviderException       When the API returns any other error (HTTP 4xx/5xx)
+     * @throws RuntimeException        When the cURL request itself fails
      */
     protected function embeddingRequest(array $payload): array
     {
@@ -293,7 +406,16 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
     }
 
     /**
-     * Make an API request.
+     * Make a chat completion API request to Ollama's OpenAI-compatible endpoint.
+     *
+     * @param array $payload The chat completion request payload
+     *
+     * @return array The decoded JSON response
+     *
+     * @throws AuthenticationException When authentication fails (HTTP 401)
+     * @throws RateLimitException      When rate limits are exceeded (HTTP 429)
+     * @throws ProviderException       When the API returns any other error (HTTP 4xx/5xx)
+     * @throws RuntimeException        When the cURL request itself fails
      */
     protected function request(array $payload): array
     {
@@ -331,9 +453,15 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
     /**
      * Throw the appropriate exception based on HTTP status code.
      *
-     * @throws AuthenticationException
-     * @throws RateLimitException
-     * @throws ProviderException
+     * Maps HTTP 401 to AuthenticationException, 429 to RateLimitException,
+     * and all other 4xx/5xx codes to ProviderException.
+     *
+     * @param int        $httpCode The HTTP response status code
+     * @param array|null $data     The decoded JSON error response body
+     *
+     * @throws AuthenticationException When authentication fails (HTTP 401)
+     * @throws RateLimitException      When rate limits are exceeded (HTTP 429)
+     * @throws ProviderException       For all other HTTP errors
      */
     protected function throwForStatusCode(int $httpCode, ?array $data): never
     {
@@ -364,9 +492,14 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
     }
 
     /**
-     * Make a streaming API request.
+     * Make a streaming chat completion request to Ollama's OpenAI-compatible endpoint.
      *
-     * @return Generator<array>
+     * Buffers the full SSE response, then parses and yields individual events.
+     * Each yielded array represents one SSE data frame in OpenAI chat completion format.
+     *
+     * @param array $payload The chat completion request payload (must include stream=true)
+     *
+     * @return Generator<array> Parsed SSE events as associative arrays
      */
     protected function streamRequest(array $payload): Generator
     {
