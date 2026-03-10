@@ -102,14 +102,6 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
      * has isComplete=true. Only text content is streamed.
      *
      * @param array<Message> $messages Conversation history as PapiAI Message objects
-     * @param array{
-     *     model?: string,
-     *     tools?: array,
-     *     maxTokens?: int,
-     *     temperature?: float,
-     *     stopSequences?: array<string>,
-     *     outputSchema?: array,
-     * } $options Request options (model, tools, maxTokens, temperature, etc.)
      *
      * @return iterable<StreamChunk> Stream of text chunks, ending with a completion marker
      *
@@ -185,9 +177,6 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
      * for embedding generation. Defaults to the nomic-embed-text model.
      *
      * @param string|array<string> $input Text or array of texts to embed
-     * @param array{
-     *     model?: string,
-     * } $options Embedding options (model defaults to 'nomic-embed-text')
      *
      * @return EmbeddingResponse The embedding vectors and metadata
      *
