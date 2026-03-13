@@ -1,6 +1,6 @@
 # PapiAI Ollama Provider
 
-[![Tests](https://github.com/papi-ai/ollama/workflows/CI/badge.svg)](https://github.com/papi-ai/ollama/actions?query=workflow%3ACI)
+[![CI](https://github.com/papi-ai/ollama/workflows/CI/badge.svg)](https://github.com/papi-ai/ollama/actions?query=workflow%3ACI) [![Latest Version](https://img.shields.io/packagist/v/papi-ai/ollama.svg)](https://packagist.org/packages/papi-ai/ollama) [![Total Downloads](https://img.shields.io/packagist/dt/papi-ai/ollama.svg)](https://packagist.org/packages/papi-ai/ollama) [![PHP Version](https://img.shields.io/packagist/php-v/papi-ai/ollama.svg)](https://packagist.org/packages/papi-ai/ollama) [![License](https://img.shields.io/packagist/l/papi-ai/ollama.svg)](https://packagist.org/packages/papi-ai/ollama)
 
 Ollama provider for [PapiAI](https://github.com/papi-ai/papi-core) - A simple but powerful PHP library for building AI agents.
 
