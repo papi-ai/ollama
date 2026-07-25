@@ -26,6 +26,7 @@ use PapiAI\Core\Response;
 use PapiAI\Core\Role;
 use PapiAI\Core\StreamChunk;
 use PapiAI\Core\ToolCall;
+use PapiAI\Core\ToolChoice;
 use RuntimeException;
 
 /**
@@ -46,6 +47,8 @@ use RuntimeException;
  * - nomic-embed-text (embeddings)
  *
  * @see https://github.com/ollama/ollama/blob/main/docs/openai.md
+ *
+ * @psalm-import-type ChatOptions from ProviderInterface
  */
 class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
 {
@@ -71,14 +74,7 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
      * vision, structured output, and custom generation parameters.
      *
      * @param array<Message> $messages Conversation history as PapiAI Message objects
-     * @param array{
-     *     model?: string,
-     *     tools?: array,
-     *     maxTokens?: int,
-     *     temperature?: float,
-     *     stopSequences?: array<string>,
-     *     outputSchema?: array,
-     * } $options Request options (model, tools, maxTokens, temperature, etc.)
+     * @param ChatOptions     $options  Request options (model, tools, maxTokens, temperature, toolChoice, etc.)
      *
      * @return Response Parsed response containing text, tool calls, usage, and stop reason
      *
@@ -288,6 +284,19 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
         // Handle tools
         if (isset($options['tools']) && !empty($options['tools'])) {
             $payload['tools'] = $this->convertTools($options['tools']);
+        }
+
+        // Ollama's /api/chat has no forced-tool-choice mechanism. Validate the option and fail loudly
+        // for anything other than "auto", rather than silently ignoring the caller's guarantee.
+        if (isset($options['toolChoice'])) {
+            $choice = ToolChoice::fromOption($options['toolChoice'], $options['tools'] ?? []);
+
+            if (!$choice->isAuto()) {
+                throw new ProviderException(
+                    'Ollama does not support forced tool choice; only "auto" is available.',
+                    $this->getName(),
+                );
+            }
         }
 
         return $payload;
