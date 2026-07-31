@@ -17,10 +17,12 @@ namespace PapiAI\Ollama;
 use Generator;
 use PapiAI\Core\Contracts\EmbeddingProviderInterface;
 use PapiAI\Core\Contracts\ProviderInterface;
+use PapiAI\Core\Effort;
 use PapiAI\Core\EmbeddingResponse;
 use PapiAI\Core\Exception\AuthenticationException;
 use PapiAI\Core\Exception\ProviderException;
 use PapiAI\Core\Exception\RateLimitException;
+use PapiAI\Core\Exception\UnknownEffortException;
 use PapiAI\Core\Message;
 use PapiAI\Core\Response;
 use PapiAI\Core\Role;
@@ -49,9 +51,8 @@ use RuntimeException;
  * @see https://github.com/ollama/ollama/blob/main/docs/openai.md
  *
  * @psalm-import-type ChatOptions from ProviderInterface *
- * The neutral `effort` option is accepted and ignored here. Ollama does expose a think parameter, per model, but papi does not map it yet, so the option is accepted and ignored for now. Ignoring it
- * degrades nothing the caller was promised, which is why it is silent where an unhonourable
- * `toolChoice` throws.
+ * The neutral effort option maps to Ollama's think flag, or to a level string on gpt-oss
+ * builds. Support depends entirely on which model the user has pulled.
  */
 class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
 {
@@ -66,6 +67,7 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
         private readonly string $baseUrl = 'http://localhost:11434',
         private readonly string $defaultModel = 'llama3.1',
         private readonly int $defaultMaxTokens = 4096,
+        private readonly ?Effort $defaultEffort = null,
     ) {
     }
 
@@ -302,7 +304,38 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
             }
         }
 
+        // Reasoning effort. Ollama exposes a "think" flag rather than a scale, except on gpt-oss
+        // builds which take a level string. Support is per model, since it depends entirely on
+        // what the user pulled.
+        $effort = $this->effortFor($options);
+
+        if ($effort !== null) {
+            $model = (string) ($options['model'] ?? $this->defaultModel);
+
+            $payload['think'] = str_contains($model, 'gpt-oss') && $effort->thinks()
+                ? $effort->nearestOf([Effort::Low, Effort::Medium, Effort::High])->value
+                : $effort->thinks();
+        }
+
         return $payload;
+    }
+
+    /**
+     * The effort this request asks for: the per-call option, else the provider default.
+     *
+     * @param array<string, mixed> $options The caller's request options
+     *
+     * @throws UnknownEffortException When the level is not one core defines
+     */
+    private function effortFor(array $options): ?Effort
+    {
+        if (!isset($options['effort'])) {
+            return $this->defaultEffort;
+        }
+
+        $level = (string) $options['effort'];
+
+        return Effort::tryFrom($level) ?? throw new UnknownEffortException($level);
     }
 
     /**
