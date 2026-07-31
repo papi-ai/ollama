@@ -12,6 +12,8 @@
 
 declare(strict_types=1);
 
+use PapiAI\Core\Contracts\NamedToolSelectableInterface;
+use PapiAI\Core\Contracts\ToolSelectableInterface;
 use PapiAI\Core\Exception\ProviderException;
 use PapiAI\Core\Message;
 use PapiAI\Ollama\OllamaProvider;
@@ -63,5 +65,13 @@ describe('OllamaProvider tool choice', function () {
     it('throws for an unknown toolChoice value', function () {
         expect(fn () => $this->provider->chat([Message::user('hi')], ['tools' => $this->tools, 'toolChoice' => 'always']))
             ->toThrow(InvalidArgumentException::class);
+    });
+});
+
+describe('OllamaProvider tool-selection capability', function () {
+    it('declares what it can force, so callers can ask instead of catching', function () {
+        // Ollama has no forced-choice mechanism at all, so it claims neither capability.
+        expect(is_subclass_of(OllamaProvider::class, ToolSelectableInterface::class))->toBeFalse();
+        expect(is_subclass_of(OllamaProvider::class, NamedToolSelectableInterface::class))->toBeFalse();
     });
 });
