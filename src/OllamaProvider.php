@@ -48,7 +48,10 @@ use RuntimeException;
  *
  * @see https://github.com/ollama/ollama/blob/main/docs/openai.md
  *
- * @psalm-import-type ChatOptions from ProviderInterface
+ * @psalm-import-type ChatOptions from ProviderInterface *
+ * The neutral `effort` option is accepted and ignored here. Ollama does expose a think parameter, per model, but papi does not map it yet, so the option is accepted and ignored for now. Ignoring it
+ * degrades nothing the caller was promised, which is why it is silent where an unhonourable
+ * `toolChoice` throws.
  */
 class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
 {
