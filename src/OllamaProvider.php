@@ -378,7 +378,7 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
                     'type' => 'function',
                     'function' => [
                         'name' => $tc->name,
-                        'arguments' => json_encode($tc->arguments),
+                        'arguments' => $tc->argumentsAsJson(),
                     ],
                 ];
             }, $message->toolCalls);
