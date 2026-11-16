@@ -35,7 +35,7 @@ class TestableOllamaToolChoiceProvider extends OllamaProvider
 
 describe('OllamaProvider tool choice', function () {
     beforeEach(function () {
-        $this->provider = new TestableOllamaToolChoiceProvider('http://localhost:11434');
+        $this->provider = new TestableOllamaToolChoiceProvider('http://localhost:11434', 'llama3.1');
         $this->tools = [
             ['name' => 'get_weather', 'description' => 'Weather', 'parameters' => ['type' => 'object']],
         ];

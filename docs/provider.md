@@ -17,7 +17,7 @@ use PapiAI\Ollama\OllamaProvider;
 // No API key needed — runs locally
 $provider = new OllamaProvider(
     baseUrl: 'http://localhost:11434',  // default
-    defaultModel: 'llama3.1',
+    defaultModel: 'llama3.1', // required: Ollama has no vendor default
 );
 
 $agent = new Agent(
@@ -33,9 +33,12 @@ No API key is required. Ollama runs models locally on your machine.
 
 ## Models
 
+Ollama serves whatever you have pulled, so there is no default model. Name one per call or in the constructor; without either, `chat()` throws before any request and points you at `ollama list`.
+
+
 | Model | Type |
 |---|---|
-| `llama3.1` (default) | General purpose |
+| `llama3.1` | General purpose |
 | `codellama` | Code generation |
 | `mistral` | General purpose |
 | `mixtral` | Mixture of experts |

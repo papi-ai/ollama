@@ -33,7 +33,7 @@ The following models are supported (as referenced in `OllamaProvider`):
 
 | Model | Type |
 |---|---|
-| `llama3.1` (default) | General purpose |
+| `llama3.1` | General purpose |
 | `codellama` | Code generation |
 | `mistral` | General purpose |
 | `mixtral` | Mixture of experts |

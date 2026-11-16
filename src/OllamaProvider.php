@@ -60,12 +60,12 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
      * Create a new Ollama provider instance.
      *
      * @param string $baseUrl         Ollama server URL (defaults to localhost:11434)
-     * @param string $defaultModel    Model to use when not specified in options
+     * @param string|null $defaultModel Model to use when a call names none; without either, calls throw
      * @param int    $defaultMaxTokens Maximum output tokens when not specified in options
      */
     public function __construct(
         private readonly string $baseUrl = 'http://localhost:11434',
-        private readonly string $defaultModel = 'llama3.1',
+        private readonly ?string $defaultModel = null,
         private readonly int $defaultMaxTokens = 4096,
         private readonly ?Effort $defaultEffort = null,
     ) {
@@ -249,6 +249,27 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
     }
 
     /**
+     * The model this call targets. Ollama serves whatever the user pulled, so there is no vendor
+     * default to fall back on.
+     *
+     * @param array<string, mixed> $options
+     *
+     * @throws ProviderException When neither the call nor the constructor named a model
+     */
+    private function modelFor(array $options): string
+    {
+        $model = $options['model'] ?? $this->defaultModel;
+
+        if (is_string($model) && $model !== '') {
+            return $model;
+        }
+
+        throw new ProviderException(
+            'No model was given. Pass "model" in the options or a default to the constructor; "ollama list" shows what this server has pulled.',
+            $this->getName(),
+        );
+    }
+    /**
      * Build the API request payload.
      */
     private function buildPayload(array $messages, array $options): array
@@ -262,7 +283,7 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
         }
 
         $payload = [
-            'model' => $options['model'] ?? $this->defaultModel,
+            'model' => $this->modelFor($options),
             'messages' => $apiMessages,
         ];
 
@@ -308,7 +329,7 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
         $effort = $this->effortFor($options);
 
         if ($effort !== null) {
-            $model = (string) ($options['model'] ?? $this->defaultModel);
+            $model = $this->modelFor($options);
 
             $payload['think'] = str_contains($model, 'gpt-oss') && $effort->thinks()
                 ? $effort->nearestOf([Effort::Low, Effort::Medium, Effort::High])->value

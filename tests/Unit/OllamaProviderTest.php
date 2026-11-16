@@ -66,7 +66,7 @@ class TestableOllamaProvider extends OllamaProvider
 
 describe('OllamaProvider', function () {
     beforeEach(function () {
-        $this->provider = new TestableOllamaProvider();
+        $this->provider = new TestableOllamaProvider(defaultModel: 'llama3.1');
     });
 
     describe('construction', function () {
