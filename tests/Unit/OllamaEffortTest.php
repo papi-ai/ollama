@@ -33,7 +33,7 @@ class TestableOllamaEffortProvider extends OllamaProvider
 
 describe('OllamaProvider reasoning effort', function () {
     beforeEach(function () {
-        $this->provider = new TestableOllamaEffortProvider('http://localhost:11434');
+        $this->provider = new TestableOllamaEffortProvider('http://localhost:11434', 'llama3.1');
         $this->chat = fn (array $options) => $this->provider->chat([Message::user('hi')], $options);
     });
 
