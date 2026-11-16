@@ -20,6 +20,7 @@ use PapiAI\Core\Exception\ProviderException;
 use PapiAI\Core\Exception\RateLimitException;
 use PapiAI\Core\Message;
 use PapiAI\Core\Response;
+use PapiAI\Core\StopReason;
 use PapiAI\Core\StreamChunk;
 use PapiAI\Core\ToolCall;
 use PapiAI\Ollama\OllamaProvider;
@@ -503,5 +504,21 @@ describe('OllamaProvider', function () {
             expect(fn () => $this->provider->callThrowForStatusCode(500, null))
                 ->toThrow(ProviderException::class);
         });
+    });
+});
+
+describe('OllamaProvider stop reason', function () {
+    beforeEach(function () {
+        $this->provider = new TestableOllamaProvider(defaultModel: 'llama3.1');
+        $this->stoppedBecause = function (string $raw): StopReason {
+            $this->provider->fakeResponse = ['choices' => [['message' => ['role' => 'assistant', 'content' => 'x'], 'finish_reason' => $raw]], 'usage' => []];
+
+            return $this->provider->chat([Message::user('Hi')])->stoppedBecause;
+        };
+    });
+
+    it('says why the model stopped in core\'s vocabulary', function () {
+        expect(($this->stoppedBecause)('stop'))->toBe(StopReason::Stop);
+        expect(($this->stoppedBecause)('length'))->toBe(StopReason::MaxTokens);
     });
 });

@@ -49,6 +49,26 @@ The following models are supported (as referenced in `OllamaProvider`):
 - Structured output / JSON mode
 - Runs locally via Ollama (no API key required)
 
+## Creating It by Name
+
+An application that picks its provider from configuration can build this one without naming
+its class:
+
+```php
+use PapiAI\Core\Factory\ComposerDiscovery;
+use PapiAI\Core\Factory\ProviderRegistry;
+
+$registry = new ProviderRegistry(new ComposerDiscovery());
+
+$provider = $registry->create('ollama', [
+    'model' => 'llama3.1',
+]);
+```
+
+It takes `base_url`, `model`, `max_tokens` and `effort`. Anything it is not given falls back to the
+constructor's defaults, and a missing or unknown setting throws `ConfigurationException` before any
+request is made.
+
 ## License
 
 MIT
