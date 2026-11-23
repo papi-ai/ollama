@@ -46,7 +46,7 @@ The following models are supported (as referenced in `OllamaProvider`):
 - Streaming support
 - Embeddings support
 - Vision support
-- Structured output / JSON mode
+- Structured output, with the schema enforced by Ollama
 - Runs locally via Ollama (no API key required)
 
 ## Creating It by Name
