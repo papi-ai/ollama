@@ -309,7 +309,7 @@ describe('OllamaProvider', function () {
             expect($response->toolCalls[0]->arguments)->toBe(['city' => 'London']);
         });
 
-        it('includes output schema as json format', function () {
+        it('sends the output schema as a json_schema response format', function () {
             $this->provider->fakeResponse = [
                 'choices' => [
                     [
@@ -324,7 +324,11 @@ describe('OllamaProvider', function () {
             $schema = ['type' => 'object', 'properties' => ['name' => ['type' => 'string']]];
             $this->provider->chat([Message::user('Hello')], ['outputSchema' => $schema]);
 
-            expect($this->provider->lastPayload['format'])->toBe('json');
+            expect($this->provider->lastPayload)->not->toHaveKey('format');
+            expect($this->provider->lastPayload['response_format'])->toBe([
+                'type' => 'json_schema',
+                'json_schema' => ['name' => 'response', 'schema' => $schema],
+            ]);
         });
 
         it('converts multimodal messages with url images', function () {

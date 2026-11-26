@@ -152,7 +152,7 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
     /**
      * Whether this provider supports structured JSON output.
      *
-     * Ollama supports JSON mode via the 'format' parameter.
+     * Ollama holds the model to a schema sent as `response_format`.
      *
      * @return bool Always true for Ollama
      */
@@ -299,10 +299,11 @@ class OllamaProvider implements ProviderInterface, EmbeddingProviderInterface
             $payload['stop'] = $options['stopSequences'];
         }
 
-        // Handle structured output / JSON mode
-        // Ollama uses 'format' => 'json' instead of OpenAI's response_format with json_schema
         if (isset($options['outputSchema'])) {
-            $payload['format'] = 'json';
+            $payload['response_format'] = [
+                'type' => 'json_schema',
+                'json_schema' => ['name' => 'response', 'schema' => $options['outputSchema']],
+            ];
         }
 
         // Handle tools
